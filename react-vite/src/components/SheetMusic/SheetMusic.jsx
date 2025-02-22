@@ -1,48 +1,58 @@
 import { useEffect, useRef } from "react";
-import Vex from "vexflow";
+import { Renderer, Stave, StaveNote, Voice, Formatter } from "vexflow";
 
-const SheetMusic = () => {
-  const sheetRef = useRef(null);
-  const rendererRef = useRef(null); // Store renderer instance
+const SheetMusic = ({ noteData, numBeats = 4, beatValue = 4 }) => {
+  const containerRef = useRef(null);
 
   useEffect(() => {
-    if (!sheetRef.current) return;
+    if (!containerRef.current || !noteData.length) return;
 
-    // Clear previous renderer if it exists
-    if (rendererRef.current) {
-      sheetRef.current.innerHTML = "";
-    }
+    containerRef.current.innerHTML = ""; // Clear previous content
 
-    const VF = Vex.Flow;
-    const renderer = new VF.Renderer(sheetRef.current, VF.Renderer.Backends.SVG);
-    renderer.resize(500, 200);
+    const renderer = new Renderer(containerRef.current, Renderer.Backends.SVG);
+    renderer.resize(800, 200); // Adjust width dynamically if needed
     const context = renderer.getContext();
 
-    const stave = new VF.Stave(10, 40, 400);
-    stave.addClef("treble").addTimeSignature("4/4");
-    stave.setContext(context).draw();
+    let x = 10; // Starting position for the first measure
+    const measureWidth = 350; // Adjust width per measure
 
-    const notes = [
-      new VF.StaveNote({ keys: ["c/4"], duration: "q" }),
-      new VF.StaveNote({ keys: ["d/4"], duration: "q" }),
-      new VF.StaveNote({ keys: ["e/4"], duration: "q" }),
-      new VF.StaveNote({ keys: ["f/4"], duration: "q" }),
-    //   new VF.StaveNote({ keys: ["g/4"], duration: "h" }),
-    //   new VF.StaveNote({ keys: ["c/4", "e/4", "g/4"], duration: "q" }), // Chord
-    ];
+    // 🔹 Split Notes into Measures
+    let measures = [];
+    let currentMeasure = [];
 
-    const voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
-    voice.addTickables(notes);
+    let beatCount = 0;
+    noteData.forEach(note => {
+      currentMeasure.push(new StaveNote(note));
+      beatCount += note.duration === "h" ? 2 : 1; // Adjust for half/whole notes
 
-    const formatter = new VF.Formatter().joinVoices([voice]).format([voice], 400);
-    voice.draw(context, stave);
+      if (beatCount >= numBeats) {
+        measures.push(currentMeasure);
+        currentMeasure = [];
+        beatCount = 0;
+      }
+    });
 
-    // Store renderer reference
-    rendererRef.current = renderer;
+    if (currentMeasure.length) {
+      measures.push(currentMeasure);
+    }
 
-  }, []);
+    // 🔹 Render Each Measure
+    measures.forEach((measureNotes, index) => {
+      const stave = new Stave(x, 40, measureWidth);
+      if (index === 0) stave.addClef("treble"); // Add clef only on the first measure
+      stave.setContext(context).draw();
 
-  return <div ref={sheetRef}></div>;
+      const voice = new Voice({ num_beats: numBeats, beat_value: beatValue }).addTickables(measureNotes);
+
+      new Formatter().joinVoices([voice]).format([voice], measureWidth - 50);
+      voice.draw(context, stave);
+
+      x += measureWidth + 20; // Move X position for the next measure
+    });
+
+  }, [noteData, numBeats, beatValue]);
+
+  return <div ref={containerRef}></div>;
 };
 
 export default SheetMusic;
